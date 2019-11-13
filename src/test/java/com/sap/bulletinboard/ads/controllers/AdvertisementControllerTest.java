@@ -69,6 +69,24 @@ public class AdvertisementControllerTest {
     }
 
     @Test
+    public void createEmptyTitle() throws Exception {
+        mockMvc.perform(buildPostRequest(null))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    public void createBlancTitle() throws Exception {
+        mockMvc.perform(buildPostRequest(""))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    public void createWithNoContent() throws Exception {
+        mockMvc.perform(post(AdvertisementController.PATH).contentType(APPLICATION_JSON_UTF8))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     public void readAll() throws Exception {
         mockMvc.perform(buildPostRequest(SOME_TITLE))
                 .andExpect(status().isCreated());
@@ -98,6 +116,13 @@ public class AdvertisementControllerTest {
                 .andExpect(header().string(LOCATION, is(not(""))))
                 .andExpect(content().contentType(APPLICATION_JSON_UTF8))
                 .andExpect(jsonPath("$.title", is(SOME_TITLE)));
+    }
+
+    @Test
+    public void readIdNegative() throws Exception
+    {
+        mockMvc.perform(buildGetRequest("-1"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

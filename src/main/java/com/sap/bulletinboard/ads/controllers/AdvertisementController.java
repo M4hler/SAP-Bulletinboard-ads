@@ -9,6 +9,7 @@ import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.annotation.RequestScope;
 import org.springframework.web.util.UriComponents;
@@ -17,6 +18,9 @@ import org.springframework.web.util.UriComponentsBuilder;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.sap.bulletinboard.ads.models.Advertisement;
 
+import javax.validation.Valid;
+import javax.validation.constraints.Min;
+
 /*
  * Use a path which does not end with a slash! Otherwise the controller is not reachable when not using the trailing
  * slash in the URL
@@ -24,6 +28,7 @@ import com.sap.bulletinboard.ads.models.Advertisement;
 @RestController
 @RequestMapping(path = AdvertisementController.PATH)
 @RequestScope // @Scope(WebApplicationContext.SCOPE_REQUEST)
+@Validated
 public class AdvertisementController {
     public static final String PATH = "/api/v1/ads";
 
@@ -36,7 +41,7 @@ public class AdvertisementController {
 
     @GetMapping("/{id}")
     // We do not use primitive "long" type here to avoid unnecessary autoboxing
-    public Advertisement advertisementById(@PathVariable("id") Long id) {
+    public Advertisement advertisementById(@PathVariable("id") @Min(0) Long id) {
         if (!ads.containsKey(id)) {
             throw new NotFoundException(id + " not found");
         }
@@ -48,7 +53,7 @@ public class AdvertisementController {
      *              content type.
      */
     @PostMapping
-    public ResponseEntity<Advertisement> add(@RequestBody Advertisement advertisement,
+    public ResponseEntity<Advertisement> add(@Valid @RequestBody Advertisement advertisement,
                                              UriComponentsBuilder uriComponentsBuilder) throws URISyntaxException {
 
         long id = ads.size();
