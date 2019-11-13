@@ -7,13 +7,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.context.annotation.RequestScope;
 import org.springframework.web.util.UriComponents;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -60,6 +56,34 @@ public class AdvertisementController {
 
         UriComponents uriComponents = uriComponentsBuilder.path(PATH + "/{id}").buildAndExpand(id);
         return ResponseEntity.created(new URI(uriComponents.getPath())).body(advertisement);
+    }
+
+    @PutMapping("/{id}")
+    public Advertisement update(@PathVariable("id") long id, @RequestBody Advertisement updatedAd) {
+        throwIfNonexisting(id);
+        ads.put(id, updatedAd);
+        return updatedAd;
+    }
+
+    @DeleteMapping
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteAll()
+    {
+        ads.clear();
+    }
+
+    @DeleteMapping("{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteById(@PathVariable("id") long id)
+    {
+        throwIfNonexisting(id);
+        ads.remove(id);
+    }
+
+    private void throwIfNonexisting(long id) {
+        if (!ads.containsKey(id)) {
+            throw new NotFoundException(id + " not found");
+        }
     }
 
     public static class AdvertisementList {
