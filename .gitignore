@@ -1,0 +1,22 @@
+.DS_Store
+thumbs.db
+target
+embedded_tomcat
+/bin/
+manifest-*
+*.log
+.settings/org.eclipse.wst.common.project.facet.*
+
+### NodeJS related ###
+npm-debug.log
+node_modules
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### Eclipse ###
+.classpath
+.project
