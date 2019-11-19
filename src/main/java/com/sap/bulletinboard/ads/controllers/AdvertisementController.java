@@ -1,22 +1,20 @@
 package com.sap.bulletinboard.ads.controllers;
-
 import static org.springframework.http.HttpStatus.*;
-
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Collection;
-
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 import javax.inject.Inject;
 import javax.validation.Valid;
 import javax.validation.constraints.Min;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
-
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -31,11 +29,9 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.annotation.RequestScope;
 import org.springframework.web.util.UriComponents;
 import org.springframework.web.util.UriComponentsBuilder;
-
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.sap.bulletinboard.ads.models.Advertisement;
 import com.sap.bulletinboard.ads.models.AdvertisementRepository;
-
 /*
  * Use a path which does not end with a slash! Otherwise the controller is not reachable when not using the trailing
  * slash in the URL
@@ -51,27 +47,66 @@ public class AdvertisementController {
     // allows server side optimization e.g. via caching
     public static final int DEFAULT_PAGE_SIZE = 20;
 
+    private final Logger logger = LoggerFactory.getLogger(this.getClass());
+
     private AdvertisementRepository adRepository;
 
     @Inject
     public AdvertisementController(AdvertisementRepository repository) {
         this.adRepository = repository;
     }
-
     @GetMapping
-    public ResponseEntity<AdvertisementList> advertisements() {
+    public ResponseEntity<AdvertisementListDto> advertisements() {
         return advertisementsForPage(FIRST_PAGE_ID);
     }
-
     @GetMapping("/pages/{pageId}") // not "public"
-    public ResponseEntity<AdvertisementList> advertisementsForPage(@PathVariable("pageId") int pageId) {
-
+    public ResponseEntity<AdvertisementListDto> advertisementsForPage(@PathVariable("pageId") int pageId) {
         Page<Advertisement> page = adRepository.findAll(new PageRequest(pageId, DEFAULT_PAGE_SIZE));
-
-        return new ResponseEntity<AdvertisementList>(new AdvertisementList(page.getContent()),
+        return new ResponseEntity<AdvertisementListDto>(new AdvertisementListDto(page.getContent()),
                 buildLinkHeader(page, PATH_PAGES), HttpStatus.OK);
     }
+    @GetMapping("/{id}")
+    // We do not use primitive "long" type here to avoid unnecessary autoboxing
+    public AdvertisementDto advertisementById(@PathVariable("id") @Min(0) Long id) {
+        logger.info("method entry, GET: {}/{}", PATH, id);
+        throwIfNonexisting(id);
+        AdvertisementDto ad = new AdvertisementDto(adRepository.findOne(id));
+        logger.info("returning: {}", ad);
+        return ad;
+    }
 
+    /**
+     * @RequestBody is bound to the method argument. HttpMessageConverter resolves method argument depending on the
+     *              content type.
+     */
+    @PostMapping
+    public ResponseEntity<AdvertisementDto> add(@Valid @RequestBody AdvertisementDto advertisement,
+                                                UriComponentsBuilder uriComponentsBuilder) throws URISyntaxException {
+        throwIfIdNotNull(advertisement.getId());
+        AdvertisementDto savedAdvertisement = new AdvertisementDto(adRepository.save(advertisement.toEntity()));
+        UriComponents uriComponents = uriComponentsBuilder.path(PATH + "/{id}")
+                .buildAndExpand(savedAdvertisement.getId());
+        return ResponseEntity.created(new URI(uriComponents.getPath())).body(savedAdvertisement);
+    }
+    @DeleteMapping
+    @ResponseStatus(NO_CONTENT)
+    public void deleteAll() {
+        adRepository.deleteAll();
+    }
+    @DeleteMapping("{id}")
+    @ResponseStatus(NO_CONTENT)
+    public void deleteById(@PathVariable("id") Long id) {
+        throwIfNonexisting(id);
+        adRepository.delete(id);
+    }
+    @PutMapping("/{id}")
+    public AdvertisementDto update(@PathVariable("id") long id, @RequestBody AdvertisementDto updatedAd) {
+        throwIfInconsistent(id, updatedAd.getId());
+        throwIfNonexisting(id);
+        adRepository.save(updatedAd.toEntity());
+        return new AdvertisementDto(adRepository.findOne(id)); // Note that EntityManager.merge might not update all
+        // fields such as createdAt
+    }
     public static HttpHeaders buildLinkHeader(Page<?> page, String path) {
         StringBuilder linkHeader = new StringBuilder();
         if (page.hasPrevious()) {
@@ -88,50 +123,6 @@ public class AdvertisementController {
         headers.add(HttpHeaders.LINK, linkHeader.toString());
         return headers;
     }
-
-    @GetMapping("/{id}")
-    // We do not use primitive "long" type here to avoid unnecessary autoboxing
-    public Advertisement advertisementById(@PathVariable("id") @Min(0) Long id) {
-        throwIfNonexisting(id);
-        return adRepository.findOne(id);
-    }
-
-    /**
-     * @RequestBody is bound to the method argument. HttpMessageConverter resolves method argument depending on the
-     *              content type.
-     */
-    @PostMapping
-    public ResponseEntity<Advertisement> add(@Valid @RequestBody Advertisement advertisement,
-                                             UriComponentsBuilder uriComponentsBuilder) throws URISyntaxException {
-        throwIfIdNotNull(advertisement.getId());
-
-        Advertisement savedAdvertisement = adRepository.save(advertisement);
-
-        UriComponents uriComponents = uriComponentsBuilder.path(PATH + "/{id}")
-                .buildAndExpand(savedAdvertisement.getId());
-        return ResponseEntity.created(new URI(uriComponents.getPath())).body(savedAdvertisement);
-    }
-
-    @DeleteMapping
-    @ResponseStatus(NO_CONTENT)
-    public void deleteAll() {
-        adRepository.deleteAll();
-    }
-
-    @DeleteMapping("{id}")
-    @ResponseStatus(NO_CONTENT)
-    public void deleteById(@PathVariable("id") Long id) {
-        throwIfNonexisting(id);
-        adRepository.delete(id);
-    }
-
-    @PutMapping("/{id}")
-    public Advertisement update(@PathVariable("id") long id, @RequestBody Advertisement updatedAd) {
-        throwIfInconsistent(id, updatedAd.getId());
-        throwIfNonexisting(id);
-        return adRepository.save(updatedAd);
-    }
-
     private static void throwIfIdNotNull(final Long id) {
         if (id != null && id.intValue() != 0) {
             String message = String
@@ -142,7 +133,9 @@ public class AdvertisementController {
 
     private void throwIfNonexisting(long id) {
         if (!adRepository.exists(id)) {
-            throw new NotFoundException(id + " not found");
+            NotFoundException notFoundException = new NotFoundException(id + " not found");
+            logger.warn("request failed", notFoundException);
+            throw notFoundException;
         }
     }
 
@@ -154,13 +147,12 @@ public class AdvertisementController {
             throw new BadRequestException(message);
         }
     }
-
-    public static class AdvertisementList {
+    public static class AdvertisementListDto {
         @JsonProperty("value")
-        public List<Advertisement> advertisements = new ArrayList<>();
-
-        public AdvertisementList(Iterable<Advertisement> ads) {
-            ads.forEach(advertisements::add);
+        public List<AdvertisementDto> advertisements;
+        public AdvertisementListDto(Iterable<Advertisement> ads) {
+            this.advertisements = StreamSupport.stream(ads.spliterator(), false).map(AdvertisementDto::new)
+                    .collect(Collectors.toList());
         }
     }
 }
