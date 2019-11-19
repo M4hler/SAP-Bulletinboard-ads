@@ -9,6 +9,7 @@ import javax.inject.Inject;
 import javax.validation.Valid;
 import javax.validation.constraints.Min;
 
+import com.sap.bulletinboard.ads.services.UserServiceClient;
 import com.sap.hcp.cf.logging.common.customfields.CustomField;
 import org.slf4j.*;
 import org.springframework.data.domain.Page;
@@ -49,13 +50,16 @@ public class AdvertisementController {
 
     private static final Marker TECHNICAL = MarkerFactory.getMarker("TECHNICAL");
     private final Logger logger = LoggerFactory.getLogger(this.getClass());
+    private UserServiceClient userServiceClient;
 
     private AdvertisementRepository adRepository;
 
     @Inject
-    public AdvertisementController(AdvertisementRepository repository) {
-        this.adRepository = repository;
-    }
+    public AdvertisementController(AdvertisementRepository repository, UserServiceClient userServiceClient) {
+            this.adRepository = repository;
+            this.userServiceClient = userServiceClient;
+        }
+
     @GetMapping
     public ResponseEntity<AdvertisementListDto> advertisements() {
         return advertisementsForPage(FIRST_PAGE_ID);
@@ -90,13 +94,18 @@ public class AdvertisementController {
     public ResponseEntity<AdvertisementDto> add(@Valid @RequestBody AdvertisementDto advertisement,
                                                 UriComponentsBuilder uriComponentsBuilder) throws URISyntaxException {
         throwIfIdNotNull(advertisement.getId());
-        AdvertisementDto savedAdvertisement = new AdvertisementDto(adRepository.save(advertisement.toEntity()));
+        if (userServiceClient.isPremiumUser("42")) {
 
-        logger.info(TECHNICAL, "created ad with version {}", savedAdvertisement.metadata.version);
-
-        UriComponents uriComponents = uriComponentsBuilder.path(PATH + "/{id}")
-                .buildAndExpand(savedAdvertisement.getId());
-        return ResponseEntity.created(new URI(uriComponents.getPath())).body(savedAdvertisement);
+            AdvertisementDto savedAdvertisement = new AdvertisementDto(adRepository.save(advertisement.toEntity()));
+            logger.trace(TECHNICAL, "created ad with version {}", savedAdvertisement.metadata.version);
+            UriComponents uriComponents = uriComponentsBuilder.path(PATH + "/{id}")
+                    .buildAndExpand(savedAdvertisement.getId());
+            return ResponseEntity.created(new URI(uriComponents.getPath())).body(savedAdvertisement);
+        } else {
+            String message = "You need to be a premium user to create an advertisement";
+            logger.warn(message);
+            throw new NotAuthorizedException(message);
+        }
     }
     @DeleteMapping
     @ResponseStatus(NO_CONTENT)

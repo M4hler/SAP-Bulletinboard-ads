@@ -11,3 +11,4 @@ applications:
       # Use the non-blocking /dev/urandom instead of the default to generate random numbers.
       # This may help with slow startup times, especially when using Spring Boot.
       JAVA_OPTS: -Djava.security.egd=file:///dev/./urandom
+      USER_ROUTE: 'https://opensapcp5userservice.cfapps.eu10.hana.ondemand.com'
