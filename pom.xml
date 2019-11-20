@@ -189,6 +189,12 @@
 				</exclusion>
 			</exclusions>
 		</dependency>
+		<!-- Resilience and asynchronous requests -->
+		<dependency>
+			<groupId>com.netflix.hystrix</groupId>
+			<artifactId>hystrix-core</artifactId>
+			<version>1.5.10</version>
+		</dependency>
 	</dependencies>
 	<build>
 		<finalName>bulletinboard-ads</finalName>

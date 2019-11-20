@@ -2,6 +2,7 @@ package com.sap.bulletinboard.ads.services;
 
 import javax.inject.Inject;
 
+import com.netflix.hystrix.exception.HystrixRuntimeException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,16 +29,19 @@ public class UserServiceClient {
 
     public boolean isPremiumUser(String id) throws RuntimeException {
         String url = userServiceRoute + "/" + PATH + "/" + id;
-        logger.info("sending request {}", url);
+        boolean isPremiumUser = false;
 
-        try {
-            ResponseEntity<User> responseEntity = restTemplate.getForEntity(url, User.class);
-            logger.info("received response, status code: {}", responseEntity.getStatusCode());
-            return responseEntity.getBody().premiumUser;
-        } catch(HttpStatusCodeException error) {
-            logger.error("received HTTP status code: {}", error.getStatusCode());
-            throw error;
+        try
+        {
+            User user = new GetUserCommand(url, restTemplate).execute();
+            isPremiumUser = user.premiumUser;
         }
+        catch(HystrixRuntimeException ex)
+        {
+            logger.warn("[HystrixFailure:" + ex.getFailureType().toString() + "] " + ex.getMessage());
+        }
+
+        return isPremiumUser;
     }
 
     public static class User {
